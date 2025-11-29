@@ -7,7 +7,7 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./data:/usr/share/nginx/html:ro
+      - shared-data:/usr/share/nginx/html:ro
     networks:
       - filehub-network
     restart: always
@@ -27,24 +27,42 @@ services:
       - PASV_MIN_PORT=${PASV_MIN_PORT:-21000}
       - PASV_MAX_PORT=${PASV_MAX_PORT:-21010}
       - FILE_OPEN_MODE=0666
-      - LOCAL_UMASK=022
+      - LOCAL_UMASK=000
+      - WRITE_ENABLE=YES
+      - ALLOW_WRITEABLE_CHROOT=YES
+      - CHOWN_UPLOADS=NO
     volumes:
-      - ./data:/home/vsftpd/${FTP_USER}
+      - shared-data:/home/vsftpd/${FTP_USER}
     networks:
       - filehub-network
 
   filebrowser:
     image: filebrowser/filebrowser:latest
     container_name: filebrowser-app
+    user: "0:0"
     ports:
       - "8090:80"
     volumes:
-      - ./data:/srv
+      - shared-data:/srv
       - filebrowser-db:/database
     environment:
       - FB_NOAUTH=false
     networks:
       - filehub-network
+    restart: always
+
+  permission-fixer:
+    image: alpine:latest
+    container_name: permission-fixer
+    volumes:
+      - shared-data:/data
+    command: >
+      sh -c "while true; do 
+        chown -R 1000:1000 /data 2>/dev/null || true;
+        find /data -type f -exec chmod 666 {} + 2>/dev/null || true;
+        find /data -type d -exec chmod 777 {} + 2>/dev/null || true;
+        sleep 5;
+      done"
     restart: always
 
 networks:
@@ -53,3 +71,4 @@ networks:
 
 volumes:
   filebrowser-db:
+  shared-data:
